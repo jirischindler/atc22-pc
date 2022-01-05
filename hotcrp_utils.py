@@ -35,9 +35,9 @@ def read_and_process_authors(filename):
 fields = [
             'Abstract',
             'Submission Type',
-            'Operational Systems Track?',
-            'Changes since previous submission(s)',
-            'Does this paper extend a previous work?',
+            'Operational Systems Track',
+            'Changes since previous submission',
+            'Previous work extension'
             'Differences from previous work',
             'Artifact Description',
             'Artifact Evaluation',
