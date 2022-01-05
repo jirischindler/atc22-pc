@@ -14,6 +14,8 @@ authors_input_filename = "atc22-authors.csv"
 data_input_filename = "all_data.txt"
 # data_input_filename = "sample_data.txt"
 
+incomplete_output_filename = "incomplete-abstracts-stats.txt"
+
 abstract_length_warning_cutoff = 75
 
 def find_short_abstracts(papers):
@@ -47,6 +49,12 @@ if __name__ == "__main__":
 
     dubious = find_short_abstracts(papers)
     log.info("Found {} papers with short or incomplete abstract".format(len(dubious)))
+
+    # Print out the submission numbers with incomplete abstacts
+    print(" ".join(dubious))
+
+    f =  open(incomplete_output_filename, 'w')
+
     emails = []
     for p in dubious: 
         try:
@@ -55,19 +63,22 @@ if __name__ == "__main__":
             # no abstract found
             abstract = ''
 
-        print("ABSTRACT: " + abstract)
+        f.write("ABSTRACT: " + abstract + "\n")
         a = None
         try:
             a = authors[p]
             # a, submission = hotcrp.find_authors(authors, papers[p]['Submission'])
-            print("<a href=\"https://atc22.usenix.hotcrp.com/paper/{}\">#{}: {}</a>".format(p, p, a['title']))
+            f.write("<a href=\"https://atc22.usenix.hotcrp.com/paper/{}\">#{}: {}</a>\n\n".format(p, p, a['title']))
             for author in a['authors']:
                 if author['iscontact']:
 #                    print(author)
                     emails.append(author['email'])
-            print("\n")
+            f.write("\n")
         except KeyError:
             pass
+    f.close()
+    log.info("Wrote incomplete abstacts details to {}".format(incomplete_output_filename))
+
     print("EMAILS:")
     print(','.join(emails))
     print("\n")

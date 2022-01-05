@@ -62,7 +62,7 @@ def read_and_process_all_data(filename):
                 if field in line:
                     key = field
                     m = re.match(submregexp, line)
-                    if m: # We fould the "Submission" line
+                    if m: # We found the "Submission" line
                         submission = m.group(1)
                         papers[submission] = {
                             field: m.group(2),
