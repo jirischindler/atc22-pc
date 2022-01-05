@@ -24,7 +24,8 @@ def read_and_process_authors(filename):
                 authors[paper]['authors'].append({
                     'first': row['first'],
                     'last': row['last'],
-                    'email': row['email']
+                    'email': row['email'],
+                    'iscontact': row['iscontact'] == 'yes',
                 })
                 cnt += 1
 
@@ -53,7 +54,7 @@ def read_and_process_all_data(filename):
     key = None
     with open(filename, newline='') as f:
         for l in f.readlines():
-            line = l.rstrip()
+            line = l.rstrip('\n')
             if line.startswith('==') or line.startswith('--'):
                 continue
             found_key = False
@@ -72,8 +73,9 @@ def read_and_process_all_data(filename):
                 continue
             if submission is not None and key is not None:
                 try:
-                    # Add a space in lieu of a stripped \n
-                    papers[submission][key] += ' ' + line
+                    if len(line) > 0:
+                        papers[submission][key] += ' '
+                    papers[submission][key] += line
                 except KeyError:
                     papers[submission][key] = line            
     return papers
