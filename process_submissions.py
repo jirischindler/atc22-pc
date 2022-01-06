@@ -1,3 +1,4 @@
+import argparse
 import os
 import pathlib
 
@@ -6,7 +7,7 @@ import hotcrp_utils as hotcrp
 import logging
 
 log = logging.getLogger()
-logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(levelname)s - %(message)s')
 
 # The input CSV file (obtained as a sheet from the Google Sheets document)
 authors_input_filename = "atc22-authors.csv"
@@ -26,35 +27,42 @@ def find_short_abstracts(papers):
         except KeyError:
             # no abstract found
             abstract = ''
-        # Assume 
         if len(abstract) < abstract_length_warning_cutoff :
             log.warning("Short abstract in paper {}".format(p))
             dubious.append(p)
     return dubious
 
-if __name__ == "__main__":
-    script = os.path.realpath(__file__)
-    path = os.path.dirname(script)
 
-    path = os.path.join(str(pathlib.Path.home()), "Downloads")
-    f = os.path.join(path, authors_input_filename)
+def handle_args():
+    parser = argparse.ArgumentParser(description='Determine incomplete submissions',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    authors, cnt = hotcrp.read_and_process_authors(filename=f)
-    log.info("Read all {} entries from CSV file {}".format(cnt, f))
+    parser.add_argument('--dir', required=False, dest='dir', default=os.path.dirname(os.path.realpath(__file__)),
+                        help='The directory prefix for files')
+    parser.add_argument('--authors-file',required=False, dest='authors_filename', default=authors_input_filename,
+                        help='The CSV file with exported authors')
+    parser.add_argument('--text-file', required=False, dest='text_filename', default=data_input_filename,
+                        help='The text file with exported text and abstracts')
+    return vars(parser.parse_args())
 
-    f = os.path.join(path, data_input_filename)
 
-    papers = hotcrp.read_and_process_all_data(f)
-    log.info("Read papers data from CSV file {}".format(f))
+if __name__ == '__main__':
+    args = handle_args()
+
+    fname = os.path.join(args['dir'], args['authors_filename'])
+
+    authors, cnt = hotcrp.read_and_process_authors(filename=fname)
+    log.info("Read all {} entries from CSV file {}".format(cnt, fname))
+
+    fname = os.path.join(args['dir'], args['text_filename'])
+    papers = hotcrp.read_and_process_all_data(fname)
+    log.info("Read papers data from CSV file {}".format(fname))
 
     dubious = find_short_abstracts(papers)
     log.info("Found {} papers with short or incomplete abstract".format(len(dubious)))
 
-    # Print out the submission numbers with incomplete abstacts
-    print(" ".join(dubious))
 
     f =  open(incomplete_output_filename, 'w')
-
     emails = []
     for p in dubious: 
         try:
@@ -71,7 +79,6 @@ if __name__ == "__main__":
             f.write("<a href=\"https://atc22.usenix.hotcrp.com/paper/{}\">#{}: {}</a>\n\n".format(p, p, a['title']))
             for author in a['authors']:
                 if author['iscontact']:
-#                    print(author)
                     emails.append(author['email'])
             f.write("\n")
         except KeyError:
@@ -79,6 +86,11 @@ if __name__ == "__main__":
     f.close()
     log.info("Wrote incomplete abstacts details to {}".format(incomplete_output_filename))
 
-    print("EMAILS:")
-    print(','.join(emails))
-    print("\n")
+    # Print out submission numbers with incomplete abstacts
+    print(" ".join(dubious))
+
+    # Print comma-separated emails of first authors with incomplete abstracts
+    # Suitable for C&P into an email program.
+#    print("EMAILS:")
+#    print(','.join(emails))
+#    print("\n")
