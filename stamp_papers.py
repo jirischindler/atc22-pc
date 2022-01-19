@@ -25,7 +25,7 @@ cd to the directory containing the paper, and then run the tool.
 Stamped papers will be left in a "stamped" subdirectory.
 
 Usage:
-    stamp_papers [-d DIR] [-m MARGIN] [-t TAGS] [-p PAPERS] [-v] BASE JSON-FILE
+    stamp_papers [-d DIR] [-m MARGIN] [-t TAGS] [-p PAPERS] [-r DIRPREFIX] [-v] BASE JSON-FILE
 
 BASE is the name of the conference that HotCRP prepends to paper
 names.  For example, if papers are named "fast17-paper2.pdf" etc.,
@@ -43,6 +43,7 @@ Options:
                 left,right,top,bottom.  [Default: 1in]
   -p PAPERS     Specify a comma-separated list of paper numbers to process.
                 The default is to do all papers listed in the JSON file.
+  -r DIRPREFIX  The directory where PDF papers are stored. [Default: .]                
   -t TAGS       Specify a comma-separated list of tags to be considered
                 when stamping papers.  Order matters.  For
                 convenience, "-paper" may be left off the tag names.
@@ -73,8 +74,68 @@ LATEX_HEADER=r"""\documentclass[{size}paper]{{article}}
 \fancyhead{{}}
 \renewcommand{{\headrule}}{{}}
 \cfoot{{}}
-\rfoot{{Page \thepage}}
+\rfoot{{\bf{{Page \thepage}}}}
 """
+
+
+def get_pdf_info(filename):
+    output = subprocess.check_output(["pdfinfo", filename])
+    output = output.decode('ascii', errors = 'ignore')
+    output = output.split('\n')
+    info_dict = {}
+    for line in output:
+        line = line.split(':', 1)
+        if len(line) == 2:
+            line = [i.strip() for i in line]
+            info_dict[line[0]] = line[1]
+    return info_dict
+
+
+# The method from the orginal script
+def generate_footer_metadata_with_options(paper, tags):
+    if tags == []:
+        footer = [tag for tag in paper['options'].keys()
+            if paper['options'][tag]]
+    else:
+        footer = [tag for tag in tags
+            if tag in paper['options']  and  paper['options'][tag]
+            or  tag + "-paper" in paper['options']
+                and  paper['options'][tag + "-paper"]]
+    return [tag.replace("-paper", "").upper() for tag in footer]
+
+
+def generate_footer_metadata_atc22(paper):
+    footer = []
+
+    val = paper['operational_systems_track']
+    if 'yes' in val.lower():
+        footer.append('Operational Systems track')
+    else:
+        footer.append('Regular track')
+    return footer
+
+
+def generate_latex(paper, margins, info_dict):
+    source_filename = 'stamp.tex'
+    stamp_source = open(source_filename, 'w')
+    if 'a4' in info_dict['Page size'].lower():
+        paper_size = 'a4'
+    else:
+        paper_size = 'letter'
+    stamp_source.write(LATEX_HEADER.format(size = paper_size,
+        lmargin = margins[0], rmargin = margins[1],
+        tmargin = margins[2], bmargin = margins[3]))
+
+    footer = generate_footer_metadata_atc22(paper)
+    stamp_source.write('\\lfoot{{\\bf{{PAPER \\#{pid} {flags}}}}}\n\n' \
+        .format(flags=' '.join(footer), pid=paper['pid']))
+    stamp_source.write('\\begin{document}\n\n')
+    for i in range(int(info_dict['Pages'])):
+        stamp_source.write('~\n\\clearpage\n')
+    stamp_source.write('\n\\end{document}\n')
+    stamp_source.close()
+    return source_filename
+
 
 def main():
     arguments = docopt.docopt(__doc__, version = 'stamp_papers 1.0')
@@ -82,7 +143,10 @@ def main():
         sys.stderr.write("Can't use '.' as destination directory\n")
         sys.exit(2)
     base = arguments['BASE']
-    tags = arguments['-t'].split(',')
+    try:
+        tags = arguments['-t'].split(',')
+    except:
+        tags = []
     if tags == ['']:
         tags = []
     margins = arguments['-m'].split(',')
@@ -112,43 +176,13 @@ def main():
         #
         # Get information about the paper.
         #
-        output = subprocess.check_output(["pdfinfo",
-          "{}-paper{}.pdf".format(base, paper['pid'])])
-        output = output.decode('ascii', errors = 'ignore')
-        output = output.split('\n')
-        info_dict = {}
-        for line in output:
-            line = line.split(':', 1)
-            if len(line) == 2:
-                line = [i.strip() for i in line]
-                info_dict[line[0]] = line[1]
+        pdf_filename = os.path.join(arguments['-r'], "{}-paper{}.pdf".format(base, paper['pid']))
+        info_dict = get_pdf_info(pdf_filename)
         #
         # Create custom LaTeX source
         #
-        stamp_source = open('stamp.tex', 'w')
-        if 'a4' in info_dict['Page size'].lower():
-            paper_size = 'a4'
-        else:
-            paper_size = 'letter'
-        stamp_source.write(LATEX_HEADER.format(size = paper_size,
-          lmargin = margins[0], rmargin = margins[1],
-          tmargin = margins[2], bmargin = margins[3]))
-        if tags == []:
-            footer = [tag for tag in paper['options'].keys()
-              if paper['options'][tag]]
-        else:
-            footer = [tag for tag in tags
-              if tag in paper['options']  and  paper['options'][tag]
-                or  tag + "-paper" in paper['options']
-                  and  paper['options'][tag + "-paper"]]
-        footer = [tag.replace("-paper", "").upper() for tag in footer]
-        stamp_source.write('\\lfoot{{{} PAPER \\#{}}}\n\n' \
-          .format(' '.join(footer), paper['pid']))
-        stamp_source.write('\\begin{document}\n\n')
-        for i in range(int(info_dict['Pages'])):
-            stamp_source.write('~\n\\clearpage\n')
-        stamp_source.write('\n\\end{document}\n')
-        stamp_source.close()
+        latex_filename = generate_latex(paper,margins, info_dict)
+
         #
         # Run pdflatex to generate the stamp PDF.
         #
@@ -159,8 +193,7 @@ def main():
         #
         # Use pdftk to apply the stamp.
         #
-        result = subprocess.call(["pdftk",
-            "{}-paper{}.pdf".format(base, paper['pid']),
+        result = subprocess.call(["pdftk", pdf_filename,
             "multistamp", "stamp.pdf", "output",
             "{}/{}-paper{}.pdf".format(arguments['-d'], base, paper['pid'])])
         if result:
