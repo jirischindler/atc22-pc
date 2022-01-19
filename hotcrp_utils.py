@@ -89,3 +89,35 @@ def find_authors(authors, title):
         if authors[s]['title'][:maxlen] == title[:maxlen]:
             return authors[s], s
     return None, None
+
+def read_and_process_review_assignments(filename):
+    # paper,action,email,round,title
+    assignments = {}
+    cnt = 0
+    with open(filename, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            paper = row['paper'].strip()
+            pc = row['email'].strip()
+            if not pc in assignments:
+                assignments[pc] = []
+            assignments[pc].append(int(paper))
+    return assignments
+
+
+def read_and_process_conflicts(filename):
+    # paper,title,first,last,email,conflicttype
+    conflicts = {}
+    full_pc = {}
+    with open(filename, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            paper = row['paper'].strip()
+            pc = row['email'].strip()
+            if not pc in conflicts:
+                conflicts[pc] = []
+            conflicts[pc].append(int(paper))
+            full_pc[pc] = "{} {}".format(row['first'].strip(), row['last'].strip())
+    sorted_full_pc = dict(sorted(full_pc.items(), key=lambda item: item[1]))
+
+    return conflicts, sorted_full_pc
