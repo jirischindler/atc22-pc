@@ -14,41 +14,61 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(levelname)s - %
 data_input_filename = "atc22-data.json"
 
 def process_artifacts(papers):
-    regexp1 = re.compile('no artifact will be', re.IGNORECASE)
-    regexp2 = re.compile('An artifact will be (made)?(.*)(available|submitted)', re.IGNORECASE)
-    regexp3 = re.compile('An artifact is(.*)available', re.IGNORECASE)
-    #    "changes_since_previous_submission": "- Described the testbed's software in more detail by using another image to give a better high-level overview of its working principle and functionality.\r\n- Described the used tools in more detail to allow an easier re-build by the reader.\r\n- Added experiments with a batch size of 10 to allow a better comparison of different batch sizes on the network and CPU load.\r\n- Added a new edge device configuration (Raspberry Pi with 4 GB of memory) to evaluate the difference in energy consumption under different settings between these two configurations.\r\n- Added a lessons learned chapter to give clear take-away messages for the reader.\r\n- Shorten the paper to be more on point and to remove redundant information to improve reading flow.\r\n- Added more up-to-date references for the related work chapter to incorporate the latest published research since the last submission.",
+    #    "changes_since_previous_submission": " Described the testbed's software ..."
     #    "previous_work_extension": "No",
-    #    "artifact_description": "We build a testbed for edge devices to evaluate the performance of Federated Learning algorithms. We designed a hardware and software stack consisting of the below mentioned parts to be scalable and flexible for different scenarios. The source code for conducting the experiments, the monitoring and the evaluation is made open-source.\r\n\r\nHardware platform: Raspberry Pi 4B\r\n\r\nSoftware: Ubuntu 20.04, PySyft v0.2.9, PostgreSQL 12.9, MQTT 2.0.14\r\n\r\nExperiments: Performance of Federated Learning algorithm under different emulated network conditions.\r\n",
+    #    "artifact_description": "We build a testbed for edge devices to evaluate the performance of ",
     #    "artifact_evaluation": "An artifact will be submitted for evaluation, if the paper is accepted.",
+    no_re = re.compile('no artifact will be', re.IGNORECASE)
+    will_be_avail_re = re.compile('An artifact will be (made)?(.*)(available|submitted)', re.IGNORECASE)
+    is_available_re = re.compile('An artifact is(.*)available', re.IGNORECASE)
     artifacts = {}
     has_artifacts = []
     no_artifacts = []
     other_artifacts = []
+    empty_artifacts = []
     for p in papers:
         pid = p['pid']
         try:
             aeval = p['artifact_evaluation'].lower()
         except KeyError:
             no_artifacts.append(pid)
+            empty_artifacts.append(pid)
             artifacts[pid] = 'empty'
             continue
-        if regexp1.search(aeval) is not None:
+        if no_re.search(aeval):
             no_artifacts.append(pid)
             artifacts[pid] = 'no'
             continue
-        if regexp2.search(aeval) is not None:
+        if will_be_avail_re.search(aeval):
             has_artifacts.append(p['pid'])
             artifacts[pid] = 'yes'
             continue
-        if regexp3.search(aeval) is not None:
+        if is_available_re.search(aeval):
             has_artifacts.append(pid)
             artifacts[pid] = 'available'
             continue        
         other_artifacts.append(pid)
-    print(has_artifacts)
-    print("\n")
-    print("No artifacts " + " ".join(str(i) for i in no_artifacts))
+
+    log.info("Found {} papers with artifacts, {:.0f}%".format(
+        len(has_artifacts),
+#        " ".join(str(i) for i in has_artifacts)
+        len(has_artifacts) / len(papers) * 100,
+    ))
+    log.info("Found {} papers without artifacts: , {:.0f}%".format(
+        len(no_artifacts),
+#         " ".join(str(i) for i in no_artifacts)
+        len(no_artifacts) / len(papers) * 100,
+    ))
+    log.info("Found {} papers with empty artifact description: {:.0f}%".format(
+        len(empty_artifacts), 
+#         " ".join(str(i) for i in no_artifacts)
+        len(empty_artifacts) / len(papers) * 100,
+    ))
+    print("Papers with artifacts: " + " ".join(str(i) for i in has_artifacts))
+    print("")
+    print("Papers w/o artifacts: " + " ".join(str(i) for i in no_artifacts))
+    print("")
+    print("Other papers: " + " ".join(str(i) for i in other_artifacts))    
     return artifacts
 
 
@@ -56,11 +76,8 @@ def handle_args():
     parser = argparse.ArgumentParser(description='Determine incomplete submissions',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--dir', required=False, dest='dir', default=os.path.dirname(os.path.realpath(__file__)),
-                        help='The directory prefix for files')
-    parser.add_argument('--data', required=False, dest='json_file', 
-                        default='../hotcrp-downloaded/atc22-data/atc22-data.json',
-                        # default=data_input_filename,
+    parser.add_argument('--data', required=False, dest='json_file',
+                        default=data_input_filename,
                         help='The JSON file with exported data')
 
     return vars(parser.parse_args())
